@@ -46,6 +46,11 @@ export default class UsersController extends BaseController {
     }
   }
 
+  /**
+   * @update
+   * @requestBody <User>
+   */
+
   async update({ request, response }: HttpContext) {
     try {
       const userId = request.param('id')
