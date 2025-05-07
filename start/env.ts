@@ -29,4 +29,13 @@ export default await Env.create(new URL('../', import.meta.url), {
   DB_USER: Env.schema.string(),
   DB_PASSWORD: Env.schema.string.optional(),
   DB_DATABASE: Env.schema.string(),
+
+  /*
+  |----------------------------------------------------------
+  | Variables for @vbusatta/adonis-stripe
+  |----------------------------------------------------------
+  */
+  STRIPE_API_KEY: Env.schema.string(),
+  STRIPE_WEBHOOK: Env.schema.string.optional(),
+  STRIPE_API_VERSION: Env.schema.string.optional()
 })
