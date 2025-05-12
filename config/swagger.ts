@@ -8,13 +8,13 @@ export default {
   description: '',
   tagIndex: 3,
   info: {
-    title: 'REST Apis',
+    title: 'Hortivise Payment Module REST Apis',
     version: '1.0.0',
     description: '',
   },
   snakeCase: true,
   debug: false,
-  ignore: ['/swagger', '/docs'],
+  ignore: ['/swagger', '/api/v1/docs', '/api/v1/docs/scalar', '/api/v1/docs/rapidoc', '/'],
   preferredPutPatch: 'PUT',
   common: {
     parameters: {

@@ -29,15 +29,19 @@ router.get('/swagger', async () => {
   return AutoSwagger.default.docs(router.toJSON(), swagger)
 })
 
-router.get('/api/v1/docs/swagger', async () => {
-  return AutoSwagger.default.ui('/swagger', swagger)
-})
-router.get('/api/v1/docs/scalar', async () => {
-  return AutoSwagger.default.scalar('/swagger')
-})
-router.get('/api/v1/docs/rapidoc', async () => {
-  return AutoSwagger.default.rapidoc('/swagger')
-})
+router
+  .group(() => {
+    router.get('/', async () => {
+      return AutoSwagger.default.ui('/swagger', swagger)
+    })
+    router.get('/scalar', async () => {
+      return AutoSwagger.default.scalar('/swagger')
+    })
+    router.get('/rapidoc', async () => {
+      return AutoSwagger.default.rapidoc('/swagger')
+    })
+  })
+  .prefix('api/v1/docs')
 
 /*
 |--------------------------------------------------------------------------
@@ -47,3 +51,4 @@ router.get('/api/v1/docs/rapidoc', async () => {
 
 import '#start/auth/auth.routes'
 import '#start/store/user.routes'
+import '#start/store/product.routes'

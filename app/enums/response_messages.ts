@@ -1,7 +1,8 @@
-enum ResponseMessages {
+enum HttpResponse {
   // 2xx Success
   OK = 'Request successful',
   CREATED = 'Resource created successfully',
+  DELETED = 'Resource deleted successfully',
   ACCEPTED = 'Request accepted for processing',
   NO_CONTENT = 'No content to return',
 
@@ -41,4 +42,4 @@ enum ResponseMessages {
   HTTP_VERSION_NOT_SUPPORTED = 'HTTP version not supported',
 }
 
-export default ResponseMessages
+export default HttpResponse

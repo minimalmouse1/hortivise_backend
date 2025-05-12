@@ -10,6 +10,7 @@
       "#mails/*": ["./app/mails/*.js"],
       "#services/*": ["./app/services/*.js"],
       "#listeners/*": ["./app/listeners/*.js"],
+      "#interface/*": ["./app/interface/*.js"],
       "#events/*": ["./app/events/*.js"],
       "#middleware/*": ["./app/middleware/*.js"],
       "#validators/*": ["./app/validators/*.js"],
