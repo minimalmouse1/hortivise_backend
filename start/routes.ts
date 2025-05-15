@@ -52,3 +52,4 @@ router
 import '#start/auth/auth.routes'
 import '#start/store/user.routes'
 import '#start/store/product.routes'
+import '#start/store/payment.routes'
