@@ -1,7 +1,7 @@
 import vine from '@vinejs/vine'
 
 /*
- * Validates the checkout sesstion action
+ * Validates the checkout session action
  */
 
 export const charge = vine.compile(
@@ -14,17 +14,18 @@ export const charge = vine.compile(
 )
 
 /*
- * Validates the checkout sesstion response action
+ * Validates the checkout session response action
  */
 
 export const chargeResponse = vine.compile(
   vine.object({
+    id: vine.string(),
     session_url: vine.string().url(),
   })
 )
 
 /*
- * Validates the checkout sesstion response action
+ * Validates the verify session response action
  */
 
 export const verifyResponse = vine.compile(
@@ -35,5 +36,44 @@ export const verifyResponse = vine.compile(
     email: vine.string().email(),
     amount: vine.number(),
     payment_status: vine.string(),
+    payment_intent: vine.string().startsWith('pi_'),
+  })
+)
+
+/*
+ * Validates the refund action
+ */
+
+export const refund = vine.compile(
+  vine.object({
+    payment_intent: vine.string().startsWith('pi_'),
+  })
+)
+
+/*
+ * Validates the partial refund action
+ */
+
+export const partialRefund = vine.compile(
+  vine.object({
+    payment_intent: vine.string().startsWith('pi_'),
+    percentage: vine.number().min(1).max(100).optional(),
+  })
+)
+
+/*
+ * Validates the refund response action
+ */
+
+export const refundResponse = vine.compile(
+  vine.object({
+    id: vine.string(),
+    status: vine.string(),
+    amount: vine.number(),
+    created: vine.number(),
+    currency: vine.string(),
+    charge: vine.string(),
+    payment_intent: vine.string(),
+    balance_transaction: vine.string(),
   })
 )

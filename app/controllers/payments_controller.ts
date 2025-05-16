@@ -4,7 +4,14 @@ import HttpResponse from '#enums/response_messages'
 import type { HttpContext } from '@adonisjs/core/http'
 import stripe from '@vbusatta/adonis-stripe/services/main'
 import { CustomerService } from '#services/customer_service'
-import { charge, chargeResponse, verifyResponse } from '#validators/payment'
+import {
+  charge,
+  chargeResponse,
+  partialRefund,
+  refund,
+  refundResponse,
+  verifyResponse,
+} from '#validators/payment'
 import logger from '@adonisjs/core/services/logger'
 
 export default class PaymentsController {
@@ -69,7 +76,7 @@ export default class PaymentsController {
         },
       })
 
-      const validated = await chargeResponse.validate({ session_url: session.url })
+      const validated = await chargeResponse.validate({ id: session.id, session_url: session.url })
 
       return response.ok({
         code: HttpCodes.OK,
@@ -90,10 +97,10 @@ export default class PaymentsController {
    * @summary Verify checkout session after success
    * @description Retrieve session details and confirm payment status
    * @paramQuery session_id - The session_id of the payment - @type(string)
-   * @responseBody 200 - { "code": 200, "message": "Payment confirmed", result: "<verifyResponse>" }
+   * @responseBody 200 - { "code": 200, "message": "Request successful", result: "<verifyResponse>" }
    * @responseBody 400 - { "code": 400, "message": "Missing session_id" }
-   * @responseBody 400 - { "code": 400, "message": "Payment incomplete or failed" }
-   * @responseBody 500 - { "code": 500, "message": "Internal server error" }
+   * @responseBody 400 - { "code": 400, "message": "Payment incomplete or failed", result: "<verifyResponse>" }
+   * @responseBody 500 - {"code": 500, "message": "Internal server error"} - Stripe error
    */
 
   async verify({ request, response }: HttpContext) {
@@ -117,10 +124,11 @@ export default class PaymentsController {
           email: session.customer_details?.email,
           amount: session.amount_total ? session.amount_total / 100 : 0,
           payment_status: session.payment_status,
+          payment_intent: session.payment_intent,
         })
         return response.ok({
           code: HttpCodes.OK,
-          message: 'Payment confirmed',
+          message: HttpResponse.OK,
           result: validated,
         })
       } else {
@@ -142,6 +150,119 @@ export default class PaymentsController {
       return response.internalServerError({
         code: HttpCodes.INTERNAL_SERVER_ERROR,
         message: HttpResponse.INTERNAL_SERVER_ERROR,
+      })
+    }
+  }
+
+  /**
+   * @refund
+   * @summary Full refund
+   * @description Refund a full payment by paymentIntent ID
+   * @requestBody <refund>
+   * @responseBody 200 - { "code": 200, "message": "Request successful", result: "<refundResponse>" }
+   * @responseBody 500 - {"code": 500, "message": "Internal server error"} - Stripe error
+   */
+
+  async refund({ request, response }: HttpContext) {
+    const data = request.all()
+    const payload = await refund.validate(data)
+
+    try {
+      const stripeRefunds = await this.stripe.refunds.create({
+        payment_intent: payload.payment_intent,
+      })
+
+      const validated = await refundResponse.validate({
+        id: stripeRefunds.id,
+        status: stripeRefunds.status,
+        amount: stripeRefunds.amount / 100,
+        created: stripeRefunds.created,
+        currency: stripeRefunds.currency,
+        charge: stripeRefunds.charge,
+        payment_intent: stripeRefunds.payment_intent,
+        balance_transaction: stripeRefunds.balance_transaction,
+      })
+
+      return response.ok({
+        code: HttpCodes.OK,
+        message: HttpResponse.OK,
+        result: validated,
+      })
+    } catch (err) {
+      logger.error(`refund error ==> ${JSON.stringify(err, null, 2)}`)
+      const stripeError = err.raw || err
+      const message =
+        stripeError?.code === 'charge_already_refunded'
+          ? 'This charge has already been refunded.'
+          : HttpResponse.INTERNAL_SERVER_ERROR
+
+      return response.status(stripeError.statusCode || 500).send({
+        code: stripeError.statusCode || HttpCodes.INTERNAL_SERVER_ERROR,
+        message,
+        error: stripeError.message,
+      })
+    }
+  }
+
+  /**
+   * @partialRefund
+   * @summary Partial refund
+   * @description Refund 10% of a payment by paymentIntent ID
+   * @requestBody <partialRefund>
+   * @responseBody 200 - { "code": 200, "message": "Request successful", result: "<refundResponse>" }
+   * @responseBody 400 - { "code": 400, "message": "No payment received to refund" }
+   */
+
+  async partialRefund({ request, response }: HttpContext) {
+    const data = request.all()
+    const payload = await partialRefund.validate(data)
+
+    try {
+      const intent = await this.stripe.paymentIntents.retrieve(payload.payment_intent)
+
+      if (!intent.amount_received) {
+        return response.badRequest({
+          code: HttpCodes.BAD_REQUEST,
+          message: 'No payment received to refund',
+        })
+      }
+
+      const refundPercent =
+        typeof payload?.percentage === 'number' &&
+        payload?.percentage > 0 &&
+        payload?.percentage <= 100
+          ? payload.percentage
+          : 90
+
+      const refundAmount = Math.floor(intent.amount_received * (refundPercent / 100))
+
+      const stripeRefunds = await this.stripe.refunds.create({
+        payment_intent: payload.payment_intent,
+        amount: refundAmount,
+      })
+
+      const validated = await refundResponse.validate({
+        id: stripeRefunds.id,
+        status: stripeRefunds.status,
+        amount: stripeRefunds.amount / 100,
+        created: stripeRefunds.created,
+        currency: stripeRefunds.currency,
+        charge: stripeRefunds.charge,
+        payment_intent: stripeRefunds.payment_intent,
+        balance_transaction: stripeRefunds.balance_transaction,
+      })
+
+      return response.ok({
+        code: HttpCodes.OK,
+        message: HttpResponse.OK,
+        result: validated,
+      })
+    } catch (err) {
+      logger.error(`partialRefund error ==> ${JSON.stringify(err, null, 2)}`)
+      const stripeError = err.raw || err
+      return response.status(stripeError.statusCode || 500).send({
+        code: stripeError.statusCode || HttpCodes.INTERNAL_SERVER_ERROR,
+        message: stripeError.message || HttpResponse.INTERNAL_SERVER_ERROR,
       })
     }
   }
