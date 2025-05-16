@@ -4,27 +4,29 @@ import HttpResponse from '#enums/response_messages'
 import type { HttpContext } from '@adonisjs/core/http'
 import stripe from '@vbusatta/adonis-stripe/services/main'
 import { CustomerService } from '#services/customer_service'
-import { charge } from '#validators/payment'
+import { charge, chargeResponse, verifyResponse } from '#validators/payment'
 import logger from '@adonisjs/core/services/logger'
 
 export default class PaymentsController {
   private service = new CustomerService()
+  private stripe = stripe.api
 
   /**
    * @charge
    * @summary Charge customer
    * @description Charge the customer based on the provided price ID using one-time payment mode.
    * @requestBody <charge>
-   * @responseBody 200 - {"code": 200, "message": "Request successful", "result": "<productResponse>"}
+   * @responseBody 200 - {"code": 200, "message": "Request successful", "result": "<chargeResponse>"}
    * @responseBody 400 - {"code": 400, "message": "Recurring price cannot be charged with mode: payment. Use a one-time price."} - Validation error
    * @responseBody 500 - {"code": 500, "message": "Internal server error"} - Stripe error
    */
+
   async charge({ request, response }: HttpContext) {
     const data = request.all()
-    const { priceId, customerEmail } = await charge.validate(data)
+    const payload = await charge.validate(data)
 
     try {
-      const price = await stripe.api.prices.retrieve(priceId)
+      const price = await this.stripe.prices.retrieve(payload.priceId)
       if (price.recurring) {
         return response.badRequest({
           code: HttpCodes.BAD_REQUEST,
@@ -34,7 +36,7 @@ export default class PaymentsController {
 
       const existingCustomers = await this.service.Search({
         field: 'email',
-        value: customerEmail,
+        value: payload.customerEmail,
       })
 
       let customerId: string
@@ -42,34 +44,37 @@ export default class PaymentsController {
         customerId = existingCustomers.data[0].id
       } else {
         const newCustomer = await this.service.Create({
-          params: { email: customerEmail },
+          params: { email: payload.customerEmail },
         })
         customerId = newCustomer.id
       }
 
-      const session = await stripe.api.checkout.sessions.create({
+      const session = await this.stripe.checkout.sessions.create({
         customer: customerId,
-        success_url: 'http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}',
-        cancel_url: 'http://localhost:3000/cancel',
+        success_url: payload?.success_url
+          ? `${payload.success_url}?session_id={CHECKOUT_SESSION_ID}`
+          : 'http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}',
+        cancel_url: payload?.cancel_url || 'http://localhost:3000/cancel',
         line_items: [
           {
-            price: priceId,
+            price: payload.priceId,
             quantity: 1,
           },
         ],
         mode: 'payment',
+
         metadata: {
-          customerEmail,
-          priceId,
+          customer_email: payload.customerEmail,
+          price_id: payload.priceId,
         },
       })
 
-      logger.info(`checkoutSession ==> ${JSON.stringify(session, null, 2)}`)
+      const validated = await chargeResponse.validate({ session_url: session.url })
 
       return response.ok({
         code: HttpCodes.OK,
         message: HttpResponse.OK,
-        result: session.url,
+        result: validated,
       })
     } catch (err) {
       logger.error(`response ==> ${JSON.stringify(err, null, 2)}`)
@@ -84,9 +89,11 @@ export default class PaymentsController {
    * @verify
    * @summary Verify checkout session after success
    * @description Retrieve session details and confirm payment status
-   * @paramPath session_id - The session_id of the payment - @type(string)
-   * @responseBody 200 - { code, message, result: sessionObject }
-   * @responseBody 400/500 - { code, message }
+   * @paramQuery session_id - The session_id of the payment - @type(string)
+   * @responseBody 200 - { "code": 200, "message": "Payment confirmed", result: "<verifyResponse>" }
+   * @responseBody 400 - { "code": 400, "message": "Missing session_id" }
+   * @responseBody 400 - { "code": 400, "message": "Payment incomplete or failed" }
+   * @responseBody 500 - { "code": 500, "message": "Internal server error" }
    */
 
   async verify({ request, response }: HttpContext) {
@@ -100,19 +107,34 @@ export default class PaymentsController {
     }
 
     try {
-      const session = await stripe.api.checkout.sessions.retrieve(sessionId)
+      const session = await this.stripe.checkout.sessions.retrieve(sessionId)
 
       if (session.payment_status === 'paid') {
+        const validated = await verifyResponse.validate({
+          id: session.id,
+          currency: session.currency,
+          created: session.created,
+          email: session.customer_details?.email,
+          amount: session.amount_total ? session.amount_total / 100 : 0,
+          payment_status: session.payment_status,
+        })
         return response.ok({
           code: HttpCodes.OK,
           message: 'Payment confirmed',
-          result: session,
+          result: validated,
         })
       } else {
         return response.badRequest({
           code: HttpCodes.BAD_REQUEST,
           message: 'Payment incomplete or failed',
-          result: session,
+          result: {
+            id: session.id,
+            currency: session.currency,
+            created: session.created,
+            email: session.customer_details?.email,
+            amount: session.amount_total ? session.amount_total / 100 : 0,
+            payment_status: session.payment_status,
+          },
         })
       }
     } catch (err) {
