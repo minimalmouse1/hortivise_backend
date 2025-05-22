@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node bin/server.js",
     "build": "node ace build",
-    "dev": "node ace serve --hmr",
+    "dev": "node ace serve --watch", 
     "test": "node ace test",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -20,6 +20,7 @@
     "#mails/*": "./app/mails/*.js",
     "#services/*": "./app/services/*.js",
     "#listeners/*": "./app/listeners/*.js",
+    "#interface/*": "./app/interface/*.js",
     "#events/*": "./app/events/*.js",
     "#middleware/*": "./app/middleware/*.js",
     "#validators/*": "./app/validators/*.js",
@@ -56,8 +57,9 @@
     "@adonisjs/core": "^6.17.2",
     "@adonisjs/cors": "^2.2.1",
     "@adonisjs/lucid": "^21.6.0",
-    "@foadonis/openapi": "^0.3.5",
+    "@vbusatta/adonis-stripe": "^0.2.1",
     "@vinejs/vine": "^3.0.0",
+    "adonis-autoswagger": "^3.73.0",
     "luxon": "^3.6.1",
     "mysql2": "^3.14.1",
     "reflect-metadata": "^0.2.2"

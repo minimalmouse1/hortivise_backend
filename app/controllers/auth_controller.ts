@@ -6,6 +6,11 @@ import HttpResponse from '#enums/response_messages'
 import BaseController from '#controllers/bases_controller'
 
 export default class AuthController extends BaseController {
+  /**
+   * @register
+   * @requestBody {"email":"maintainer@hortivise.com", "password":"123456" }
+   */
+
   async register({ request, response }: HttpContext) {
     try {
       const { email, password } = request.only(['email', 'password'])
@@ -37,13 +42,19 @@ export default class AuthController extends BaseController {
     }
   }
 
+  /**
+   * @login
+   * @requestBody {"email": "admin@hortivise.com","password":"123456"}
+   */
+
   async login({ request, response }: HttpContext) {
     try {
       const { email, password } = request.only(['email', 'password'])
       const user = await User.verifyCredentials(email, password)
 
       const token = await User.accessTokens.create(user, ['*'], {
-        name: 'user_login_token',
+        expiresIn: '2 days',
+        name: 'api_access_token',
       })
       return response.ok({
         code: HttpCodes.OK,
