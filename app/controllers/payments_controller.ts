@@ -1,4 +1,4 @@
-// start/controllers/PaymentsController.ts
+import type Stripe from 'stripe'
 import HttpCodes from '#enums/http_codes'
 import HttpResponse from '#enums/response_messages'
 import type { HttpContext } from '@adonisjs/core/http'
@@ -10,6 +10,8 @@ import {
   partialRefund,
   refund,
   refundResponse,
+  release,
+  releaseResponse,
   verifyResponse,
 } from '#validators/payment'
 import logger from '@adonisjs/core/services/logger'
@@ -259,6 +261,82 @@ export default class PaymentsController {
       })
     } catch (err) {
       logger.error(`partialRefund error ==> ${JSON.stringify(err, null, 2)}`)
+      const stripeError = err.raw || err
+      return response.status(stripeError.statusCode || 500).send({
+        code: stripeError.statusCode || HttpCodes.INTERNAL_SERVER_ERROR,
+        message: stripeError.message || HttpResponse.INTERNAL_SERVER_ERROR,
+      })
+    }
+  }
+
+  /**
+   * @release
+   * @summary Release payment to consultant
+   * @description Transfers the consultant's share from the original payment to their connected account.
+   * @requestBody <release>
+   * @responseBody 200 - { code: 200, message: "Request successful", result: "<releaseResponse>" }
+   * @responseBody 400 - { code: 400, message: "Bad request" }
+   * @responseBody 500 - { code: 500, message: "Internal server error" }
+   */
+
+  public async release({ request, response }: HttpContext) {
+    const data = request.all()
+    const payload = await release.validate(data)
+
+    try {
+      const intent = (await this.stripe.paymentIntents.retrieve(
+        payload.payment_intent
+      )) as Stripe.PaymentIntent
+
+      logger.info(`intent ==> ${JSON.stringify(intent, null, 2)}`)
+
+      const chargeId: string | null = intent.latest_charge as string
+
+      if (!chargeId) {
+        return response.badRequest({
+          code: HttpCodes.BAD_REQUEST,
+          message: 'No charge associated with this payment intent.',
+        })
+      }
+
+      const charges = await this.stripe.charges.retrieve(chargeId)
+
+      if (!charges.paid || charges.refunded || charges.status !== 'succeeded') {
+        return response.badRequest({
+          code: HttpCodes.BAD_REQUEST,
+          message: 'Charge not completed, refunded, or failed.',
+        })
+      }
+
+      const amountReceived = charges.amount
+      const platformFeePercent = payload?.platform_fee_percent || 10
+      const transferAmount = Math.floor(amountReceived * (1 - platformFeePercent / 100))
+
+      const transfer = await this.stripe.transfers.create({
+        amount: transferAmount,
+        currency: charges.currency,
+        destination: payload.consultant_account_id,
+        transfer_group: charges.transfer_group || `group_${payload.payment_intent}`,
+      })
+
+      logger.info(`transfer ==> ${JSON.stringify(transfer, null, 2)}`)
+
+      const validated = await releaseResponse.validate({
+        id: transfer.id,
+        amount: transfer.amount / 100,
+        currency: transfer.currency,
+        created: transfer.created,
+        destination: transfer.destination,
+        status: 'status' in transfer ? transfer.status : 'unknown',
+      })
+
+      return response.ok({
+        code: HttpCodes.OK,
+        message: HttpResponse.OK,
+        result: validated,
+      })
+    } catch (err) {
+      logger.error(`release error ==> ${JSON.stringify(err, null, 2)}`)
       const stripeError = err.raw || err
       return response.status(stripeError.statusCode || 500).send({
         code: stripeError.statusCode || HttpCodes.INTERNAL_SERVER_ERROR,
