@@ -6,8 +6,9 @@ router
   .group(() => {
     router.post('/charge', [Controller, 'charge'])
     router.get('/verify', [Controller, 'verify'])
-    router.post('/payment/refund', [Controller, 'refund'])
-    router.post('/payment/partial-refund', [Controller, 'partialRefund'])
+    router.post('/refund', [Controller, 'refund'])
+    router.post('/partial-refund', [Controller, 'partialRefund'])
+    router.post('/release', [Controller, 'release'])
   })
   .use(
     middleware.auth({

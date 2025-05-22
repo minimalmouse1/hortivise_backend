@@ -77,3 +77,30 @@ export const refundResponse = vine.compile(
     balance_transaction: vine.string(),
   })
 )
+
+/*
+ * Validates the release payment action
+ */
+
+export const release = vine.compile(
+  vine.object({
+    payment_intent: vine.string(),
+    consultant_account_id: vine.string(),
+    platform_fee_percent: vine.number().min(0).max(100).optional(),
+  })
+)
+
+/*
+ * Validates the release payment response
+ */
+
+export const releaseResponse = vine.compile(
+  vine.object({
+    id: vine.string(),
+    amount: vine.number(),
+    currency: vine.string(),
+    created: vine.number(),
+    destination: vine.string(),
+    status: vine.string(),
+  })
+)
