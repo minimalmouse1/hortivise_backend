@@ -71,6 +71,49 @@ export default class ConsultantsController {
     }
   }
 
+  // /**
+  //  * @show
+  //  * @summary Show consultant detail by email
+  //  * @responseBody 200 - { "code": 200, "message": "Request successful", result: "<consultantResponse>" }
+  //  * @responseBody 400 - { code: 400, message: "Missing email" }
+  //  * @responseBody 500 - { code: 500, message: "Internal server error" }
+  //  */
+
+  // public async showBYEmail({ request, response }: HttpContext) {
+  //   const email = request.param('email') || request.qs().email || request.input('email')
+
+  //   if (!email) {
+  //     return response.badRequest({
+  //       code: HttpCodes.BAD_REQUEST,
+  //       message: 'Missing email',
+  //     })
+  //   }
+
+  //   try {
+  //     const accounts = await this.stripe.accounts.list({ limit: 100 })
+  //     const matched = accounts.data.find((acct) => acct.email === email)
+
+  //     if (!matched) {
+  //       return response.notFound({
+  //         code: HttpCodes.NOT_FOUND,
+  //         message: 'Consultant not found',
+  //       })
+  //     }
+
+  //     return response.ok({
+  //       code: HttpCodes.OK,
+  //       message: HttpResponse.OK,
+  //       result: matched,
+  //     })
+  //   } catch (err) {
+  //     logger.error(`show consultant error ==> ${JSON.stringify(err, null, 2)}`)
+  //     return response.internalServerError({
+  //       code: HttpCodes.INTERNAL_SERVER_ERROR,
+  //       message: HttpResponse.INTERNAL_SERVER_ERROR,
+  //     })
+  //   }
+  // }
+
   /**
    * @create
    * @summary Create consultant and initialize Stripe connected account (escrow setup)
@@ -89,18 +132,15 @@ export default class ConsultantsController {
         type: 'express',
         email: payload.email,
         default_currency: 'usd',
-        country: payload.country,
+        country: 'US',
         business_type: 'individual',
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
         individual: {
-          first_name: payload.first_name,
-          last_name: payload.last_name,
           email: payload.email,
-          gender: payload.gender,
-          phone: payload.phone,
+          first_name: payload.first_name,
         },
         metadata: {
           source: 'consultant-onboarding',
@@ -112,12 +152,8 @@ export default class ConsultantsController {
         onboarded: false,
         email: account.email,
         default_currency: 'usd',
-        country: account.country,
         created: account.created,
         stripe_account_id: account.id,
-        phone: account.individual?.phone,
-        gender: account.individual?.gender,
-        last_name: account.individual?.last_name,
         first_name: account.individual?.first_name,
       })
 
