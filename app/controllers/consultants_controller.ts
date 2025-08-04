@@ -71,49 +71,6 @@ export default class ConsultantsController {
     }
   }
 
-  // /**
-  //  * @show
-  //  * @summary Show consultant detail by email
-  //  * @responseBody 200 - { "code": 200, "message": "Request successful", result: "<consultantResponse>" }
-  //  * @responseBody 400 - { code: 400, message: "Missing email" }
-  //  * @responseBody 500 - { code: 500, message: "Internal server error" }
-  //  */
-
-  // public async showBYEmail({ request, response }: HttpContext) {
-  //   const email = request.param('email') || request.qs().email || request.input('email')
-
-  //   if (!email) {
-  //     return response.badRequest({
-  //       code: HttpCodes.BAD_REQUEST,
-  //       message: 'Missing email',
-  //     })
-  //   }
-
-  //   try {
-  //     const accounts = await this.stripe.accounts.list({ limit: 100 })
-  //     const matched = accounts.data.find((acct) => acct.email === email)
-
-  //     if (!matched) {
-  //       return response.notFound({
-  //         code: HttpCodes.NOT_FOUND,
-  //         message: 'Consultant not found',
-  //       })
-  //     }
-
-  //     return response.ok({
-  //       code: HttpCodes.OK,
-  //       message: HttpResponse.OK,
-  //       result: matched,
-  //     })
-  //   } catch (err) {
-  //     logger.error(`show consultant error ==> ${JSON.stringify(err, null, 2)}`)
-  //     return response.internalServerError({
-  //       code: HttpCodes.INTERNAL_SERVER_ERROR,
-  //       message: HttpResponse.INTERNAL_SERVER_ERROR,
-  //     })
-  //   }
-  // }
-
   /**
    * @create
    * @summary Create consultant and initialize Stripe connected account (escrow setup)
@@ -241,6 +198,42 @@ export default class ConsultantsController {
       })
     } catch (err) {
       logger.error(`delete consultant error ==> ${JSON.stringify(err, null, 2)}`)
+      return response.internalServerError({
+        code: HttpCodes.INTERNAL_SERVER_ERROR,
+        message: HttpResponse.INTERNAL_SERVER_ERROR,
+      })
+    }
+  }
+
+  /**
+   * @delete
+   * @summary Delete consultant Stripe connected account
+   * @description Deletes the specified connected account from Stripe
+   * @responseBody 200 - { code: 200, message: "Login link created successfully" }
+   * @responseBody 400 - { code: 400, message: "Missing or invalid account_id" }
+   * @responseBody 500 - { code: 500, message: "Internal server error" }
+   */
+
+  public async createLogin({ request, response }: HttpContext) {
+    const accountId = request.param('account-id')
+
+    if (!accountId) {
+      return response.badRequest({
+        code: HttpCodes.BAD_REQUEST,
+        message: 'Missing account_id',
+      })
+    }
+
+    try {
+      const loginLink = await this.stripe.accounts.createLoginLink(accountId)
+
+      return response.ok({
+        code: HttpCodes.OK,
+        message: 'Login link created successfully',
+        result: loginLink,
+      })
+    } catch (err) {
+      logger.error(`create consultant login  error ==> ${JSON.stringify(err, null, 2)}`)
       return response.internalServerError({
         code: HttpCodes.INTERNAL_SERVER_ERROR,
         message: HttpResponse.INTERNAL_SERVER_ERROR,

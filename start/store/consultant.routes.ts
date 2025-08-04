@@ -9,6 +9,7 @@ router
     router.get('/onboarding', [Controller, 'getOnboardingLink'])
     router.get('/:account-id', [Controller, 'show'])
     router.delete('/:account-id', [Controller, 'delete'])
+    router.get('/login/:account-id', [Controller, 'createLogin'])
   })
   .use(
     middleware.auth({
