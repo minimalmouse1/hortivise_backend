@@ -288,9 +288,7 @@ export default class PaymentsController {
         payload.payment_intent
       )) as Stripe.PaymentIntent
 
-      logger.info(`intent ==> ${JSON.stringify(intent, null, 2)}`)
-
-      const chargeId: string | null = intent.latest_charge as string
+      const chargeId = intent.latest_charge as string
 
       if (!chargeId) {
         return response.badRequest({
@@ -299,27 +297,38 @@ export default class PaymentsController {
         })
       }
 
-      const charges = await this.stripe.charges.retrieve(chargeId)
+      const getCharge = await this.stripe.charges.retrieve(chargeId)
 
-      if (!charges.paid || charges.refunded || charges.status !== 'succeeded') {
+      if (!getCharge.paid || getCharge.refunded || getCharge.status !== 'succeeded') {
         return response.badRequest({
           code: HttpCodes.BAD_REQUEST,
           message: 'Charge not completed, refunded, or failed.',
         })
       }
 
-      const amountReceived = charges.amount
-      const platformFeePercent = payload?.platform_fee_percent || 10
-      const transferAmount = Math.floor(amountReceived * (1 - platformFeePercent / 100))
+      const amountReceived = getCharge.amount
+      const platformFeePercent = payload?.platform_fee_percent ?? 10
+      const platformFeeAmount = Math.floor(amountReceived * (platformFeePercent / 100))
+      const transferAmount = amountReceived - platformFeeAmount
+
+      const balance = await this.stripe.balance.retrieve()
+      const availableUsd = balance.available.find((b) => b.currency === 'usd')?.amount ?? 0
+
+      if (availableUsd < transferAmount) {
+        logger.warn(`Platform balance too low. Fund using test card 4000000000000077.`)
+        return response.badRequest({
+          code: HttpCodes.BAD_REQUEST,
+          message:
+            'Platform balance too low. Please simulate a charge to the platform using test card 4000000000000077.',
+        })
+      }
 
       const transfer = await this.stripe.transfers.create({
         amount: transferAmount,
-        currency: charges.currency,
+        currency: getCharge.currency,
         destination: payload.consultant_account_id,
-        transfer_group: charges.transfer_group || `group_${payload.payment_intent}`,
+        transfer_group: getCharge.transfer_group || `group_${payload.payment_intent}`,
       })
-
-      logger.info(`transfer ==> ${JSON.stringify(transfer, null, 2)}`)
 
       const validated = await releaseResponse.validate({
         id: transfer.id,
